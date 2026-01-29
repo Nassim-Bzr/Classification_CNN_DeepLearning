@@ -2,6 +2,9 @@
 *.keras
 *.h5
 
+# Historique des prédictions (données utilisateur)
+prediction_history.json
+
 # Python
 __pycache__/
 *.py[cod]

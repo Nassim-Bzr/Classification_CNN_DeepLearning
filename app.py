@@ -9,9 +9,44 @@ import numpy as np
 from PIL import Image
 import os
 import gdown
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 import base64
+import json
+
+# ============================================================
+# GESTION DE L'HISTORIQUE PERSISTANT (72h)
+# ============================================================
+HISTORY_FILE = "prediction_history.json"
+HISTORY_TTL_HOURS = 72
+
+def load_history():
+    """Charge l'historique depuis le fichier JSON"""
+    try:
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, 'r') as f:
+                data = json.load(f)
+
+            # Filtrer les entrées expirées (> 72h)
+            now = datetime.now()
+            valid_history = []
+            for item in data:
+                item_time = datetime.fromisoformat(item.get('timestamp', '2000-01-01'))
+                if now - item_time < timedelta(hours=HISTORY_TTL_HOURS):
+                    valid_history.append(item)
+
+            return valid_history
+    except Exception:
+        pass
+    return []
+
+def save_history(history):
+    """Sauvegarde l'historique dans le fichier JSON"""
+    try:
+        with open(HISTORY_FILE, 'w') as f:
+            json.dump(history, f)
+    except Exception:
+        pass
 
 # ============================================================
 # TÉLÉCHARGEMENT DU MODÈLE DEPUIS GOOGLE DRIVE
@@ -342,9 +377,9 @@ except Exception as e:
     model_loaded = False
 
 if model_loaded:
-    # Initialiser l'historique dans session_state
+    # Charger l'historique persistant
     if 'history' not in st.session_state:
-        st.session_state.history = []
+        st.session_state.history = load_history()
 
     # Zone d'upload
     st.markdown("### 📤 Uploadez une image")
@@ -381,16 +416,21 @@ if model_loaded:
                 img_thumb.save(buffered, format="PNG")
                 img_base64 = base64.b64encode(buffered.getvalue()).decode()
 
+                now = datetime.now()
                 st.session_state.history.insert(0, {
                     'file_id': file_id,
                     'image_base64': img_base64,
                     'label': results[0]['class'],
                     'emoji': results[0]['emoji'],
                     'confidence': results[0]['probability'],
-                    'time': datetime.now().strftime("%H:%M:%S")
+                    'time': now.strftime("%H:%M:%S"),
+                    'date': now.strftime("%d/%m"),
+                    'timestamp': now.isoformat()  # Pour l'expiration
                 })
                 # Garder seulement les 10 dernières
                 st.session_state.history = st.session_state.history[:10]
+                # Sauvegarder dans le fichier
+                save_history(st.session_state.history)
 
             # Affichage des résultats
             for i, result in enumerate(results):
@@ -452,19 +492,22 @@ if model_loaded:
         with col_clear:
             if st.button("🗑️ Effacer l'historique"):
                 st.session_state.history = []
+                save_history([])  # Vider le fichier aussi
                 st.rerun()
 
         # Afficher l'historique en grille
         cols = st.columns(5)
         for idx, item in enumerate(st.session_state.history):
             with cols[idx % 5]:
+                date_str = item.get('date', '')
+                time_str = item.get('time', '')
                 st.markdown(f"""
                 <div class="history-item" style="flex-direction: column; text-align: center;">
                     <img src="data:image/png;base64,{item['image_base64']}" style="width: 80px; height: 80px;"/>
                     <div class="history-info">
                         <div class="history-label">{item['emoji']} {item['label']}</div>
                         <div class="history-confidence">{item['confidence']*100:.1f}%</div>
-                        <div class="history-time">{item['time']}</div>
+                        <div class="history-time">{date_str} {time_str}</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
