@@ -293,6 +293,38 @@ st.markdown("""
         font-size: 0.75rem;
         color: rgba(255,255,255,0.5);
     }
+
+    /* Modal popup */
+    .modal-image {
+        width: 100%;
+        max-width: 300px;
+        border-radius: 16px;
+        margin: 0 auto;
+        display: block;
+    }
+
+    .modal-info {
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .modal-label {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 1rem 0 0.5rem 0;
+    }
+
+    .modal-confidence {
+        font-size: 1.2rem;
+        color: #00d4aa;
+        margin-bottom: 0.5rem;
+    }
+
+    .modal-date {
+        font-size: 1rem;
+        color: rgba(255,255,255,0.6);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -301,6 +333,24 @@ st.markdown("""
 # ============================================================
 IMG_SIZE = (224, 224)
 CLASS_NAMES = ['Ballet Flat', 'Boat', 'Brogue', 'Clog', 'Sneaker']
+
+# ============================================================
+# POPUP POUR L'HISTORIQUE
+# ============================================================
+@st.dialog("Détails de la prédiction")
+def show_history_detail(item):
+    """Affiche les détails d'une prédiction dans un popup"""
+    st.markdown(f"""
+    <div class="modal-info">
+        <img src="data:image/png;base64,{item['image_base64']}" class="modal-image"/>
+        <p class="modal-label">{item['emoji']} {item['label']}</p>
+        <p class="modal-confidence">Confiance : {item['confidence']*100:.1f}%</p>
+        <p class="modal-date">Envoyé le {item.get('date', 'N/A')} à {item.get('time', 'N/A')}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("Fermer", use_container_width=True):
+        st.rerun()
 CLASS_EMOJIS = {
     'Ballet Flat': '🩰',
     'Boat': '⛵',
@@ -501,8 +551,10 @@ if model_loaded:
             with cols[idx % 5]:
                 date_str = item.get('date', '')
                 time_str = item.get('time', '')
+
+                # Carte cliquable
                 st.markdown(f"""
-                <div class="history-item" style="flex-direction: column; text-align: center;">
+                <div class="history-item" style="flex-direction: column; text-align: center; cursor: pointer;">
                     <img src="data:image/png;base64,{item['image_base64']}" style="width: 80px; height: 80px;"/>
                     <div class="history-info">
                         <div class="history-label">{item['emoji']} {item['label']}</div>
@@ -511,6 +563,10 @@ if model_loaded:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                # Bouton pour ouvrir le popup
+                if st.button("👁️ Voir", key=f"view_{idx}", use_container_width=True):
+                    show_history_detail(item)
 
 # Footer
 st.markdown("""
