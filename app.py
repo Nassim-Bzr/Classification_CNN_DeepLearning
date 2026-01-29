@@ -7,6 +7,22 @@ import streamlit as st
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+import os
+import gdown
+
+# ============================================================
+# TÉLÉCHARGEMENT DU MODÈLE DEPUIS GOOGLE DRIVE
+# ============================================================
+MODEL_PATH = "shoes_mobilenetv2_finetuned.keras"
+GDRIVE_FILE_ID = "18PI1vk2UtwJ13qdh3bgY7XmTwqc47qEo"
+
+def download_model():
+    """Télécharge le modèle depuis Google Drive si nécessaire"""
+    if not os.path.exists(MODEL_PATH):
+        with st.spinner("Téléchargement du modèle (~22 MB)..."):
+            url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
+            gdown.download(url, MODEL_PATH, quiet=False)
+    return MODEL_PATH
 
 # ============================================================
 # CONFIGURATION DE LA PAGE
@@ -214,8 +230,9 @@ CLASS_EMOJIS = {
 # ============================================================
 @st.cache_resource
 def load_model():
-    """Charge le modèle MobileNetV2 pré-entraîné"""
-    model = tf.keras.models.load_model('shoes_mobilenetv2_finetuned.keras')
+    """Charge le modèle MobileNetV2 pré-entraîné (télécharge si nécessaire)"""
+    model_path = download_model()
+    model = tf.keras.models.load_model(model_path)
     return model
 
 # ============================================================
