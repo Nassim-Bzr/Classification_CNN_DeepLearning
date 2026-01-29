@@ -9,6 +9,9 @@ import numpy as np
 from PIL import Image
 import os
 import gdown
+from datetime import datetime
+import io
+import base64
 
 # ============================================================
 # TÉLÉCHARGEMENT DU MODÈLE DEPUIS GOOGLE DRIVE
@@ -209,6 +212,52 @@ st.markdown("""
         background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
         margin: 2rem 0;
     }
+
+    /* History section */
+    .history-title {
+        color: #ffffff;
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .history-item {
+        background: linear-gradient(145deg, #1e1e2e, #252535);
+        border-radius: 12px;
+        padding: 0.8rem;
+        margin: 0.5rem 0;
+        border: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .history-item img {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        object-fit: cover;
+    }
+
+    .history-info {
+        flex: 1;
+    }
+
+    .history-label {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .history-confidence {
+        font-size: 0.85rem;
+        color: #00d4aa;
+    }
+
+    .history-time {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.5);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -293,6 +342,10 @@ except Exception as e:
     model_loaded = False
 
 if model_loaded:
+    # Initialiser l'historique dans session_state
+    if 'history' not in st.session_state:
+        st.session_state.history = []
+
     # Zone d'upload
     st.markdown("### 📤 Uploadez une image")
     uploaded_file = st.file_uploader(
@@ -317,6 +370,27 @@ if model_loaded:
             # Prédiction
             with st.spinner("Analyse en cours..."):
                 results = predict_image(model, image)
+
+            # Sauvegarder dans l'historique (éviter les doublons)
+            file_id = uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name
+            if not any(h.get('file_id') == file_id for h in st.session_state.history):
+                # Convertir l'image en base64 pour la stocker
+                img_thumb = image.copy()
+                img_thumb.thumbnail((100, 100))
+                buffered = io.BytesIO()
+                img_thumb.save(buffered, format="PNG")
+                img_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+                st.session_state.history.insert(0, {
+                    'file_id': file_id,
+                    'image_base64': img_base64,
+                    'label': results[0]['class'],
+                    'emoji': results[0]['emoji'],
+                    'confidence': results[0]['probability'],
+                    'time': datetime.now().strftime("%H:%M:%S")
+                })
+                # Garder seulement les 10 dernières
+                st.session_state.history = st.session_state.history[:10]
 
             # Affichage des résultats
             for i, result in enumerate(results):
@@ -366,10 +440,38 @@ if model_loaded:
         </div>
         """, unsafe_allow_html=True)
 
+    # ============================================================
+    # HISTORIQUE DES PRÉDICTIONS
+    # ============================================================
+    if st.session_state.history:
+        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+        st.markdown("### 📜 Historique des prédictions")
+
+        # Bouton pour effacer l'historique
+        col_clear, col_spacer = st.columns([1, 3])
+        with col_clear:
+            if st.button("🗑️ Effacer l'historique"):
+                st.session_state.history = []
+                st.rerun()
+
+        # Afficher l'historique en grille
+        cols = st.columns(5)
+        for idx, item in enumerate(st.session_state.history):
+            with cols[idx % 5]:
+                st.markdown(f"""
+                <div class="history-item" style="flex-direction: column; text-align: center;">
+                    <img src="data:image/png;base64,{item['image_base64']}" style="width: 80px; height: 80px;"/>
+                    <div class="history-info">
+                        <div class="history-label">{item['emoji']} {item['label']}</div>
+                        <div class="history-confidence">{item['confidence']*100:.1f}%</div>
+                        <div class="history-time">{item['time']}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
 # Footer
 st.markdown("""
 <div class="footer">
-    <p>Créé avec ❤️ en utilisant Streamlit & TensorFlow</p>
     <p>Modèle MobileNetV2 entraîné sur le dataset Shoes Classification</p>
 </div>
 """, unsafe_allow_html=True)
