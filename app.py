@@ -1,6 +1,6 @@
 """
 Application de Classification de Chaussures
-Utilise MobileNetV2 pour classifier les images en 5 catégories
+Utilise MobileNetV2 pour classifier les images en 5 categories
 """
 
 import streamlit as st
@@ -21,27 +21,22 @@ HISTORY_FILE = "prediction_history.json"
 HISTORY_TTL_HOURS = 72
 
 def load_history():
-    """Charge l'historique depuis le fichier JSON"""
     try:
         if os.path.exists(HISTORY_FILE):
             with open(HISTORY_FILE, 'r') as f:
                 data = json.load(f)
-
-            # Filtrer les entrées expirées (> 72h)
             now = datetime.now()
             valid_history = []
             for item in data:
                 item_time = datetime.fromisoformat(item.get('timestamp', '2000-01-01'))
                 if now - item_time < timedelta(hours=HISTORY_TTL_HOURS):
                     valid_history.append(item)
-
             return valid_history
     except Exception:
         pass
     return []
 
 def save_history(history):
-    """Sauvegarde l'historique dans le fichier JSON"""
     try:
         with open(HISTORY_FILE, 'w') as f:
             json.dump(history, f)
@@ -49,15 +44,14 @@ def save_history(history):
         pass
 
 # ============================================================
-# TÉLÉCHARGEMENT DU MODÈLE DEPUIS GOOGLE DRIVE
+# TELECHARGEMENT DU MODELE DEPUIS GOOGLE DRIVE
 # ============================================================
 MODEL_PATH = "shoes_mobilenetv2_finetuned.keras"
 GDRIVE_FILE_ID = "18PI1vk2UtwJ13qdh3bgY7XmTwqc47qEo"
 
 def download_model():
-    """Télécharge le modèle depuis Google Drive si nécessaire"""
     if not os.path.exists(MODEL_PATH):
-        with st.spinner("Téléchargement du modèle (~22 MB)..."):
+        with st.spinner("Telechargement du modele (~22 MB)..."):
             url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
             gdown.download(url, MODEL_PATH, quiet=False)
     return MODEL_PATH
@@ -66,264 +60,267 @@ def download_model():
 # CONFIGURATION DE LA PAGE
 # ============================================================
 st.set_page_config(
-    page_title="Shoe Classifier",
+    page_title="Shoe Classifier AI",
     page_icon="👟",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # ============================================================
-# CSS PERSONNALISÉ - DARK MODE ÉLÉGANT
+# CSS PERSONNALISE - DESIGN WOW
 # ============================================================
 st.markdown("""
 <style>
-    /* Import Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 
-    /* Global styles */
     .stApp {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
     }
 
-    /* Header */
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background:
+            radial-gradient(circle at 20% 80%, rgba(102, 126, 234, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(118, 75, 162, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 40%, rgba(0, 212, 170, 0.05) 0%, transparent 30%);
+        pointer-events: none;
+        z-index: -1;
+    }
+
     .main-header {
         text-align: center;
-        padding: 2rem 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 20px;
+        padding: 3rem 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        border-radius: 30px;
         margin-bottom: 2rem;
-        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 20px 60px rgba(102, 126, 234, 0.4), 0 0 100px rgba(118, 75, 162, 0.2);
+        position: relative;
+        overflow: hidden;
+        animation: headerGlow 3s ease-in-out infinite;
+    }
+
+    @keyframes headerGlow {
+        0%, 100% { box-shadow: 0 20px 60px rgba(102, 126, 234, 0.4), 0 0 100px rgba(118, 75, 162, 0.2); }
+        50% { box-shadow: 0 20px 80px rgba(102, 126, 234, 0.6), 0 0 120px rgba(118, 75, 162, 0.4); }
+    }
+
+    .main-header::before {
+        content: '';
+        position: absolute;
+        top: -50%; left: -50%;
+        width: 200%; height: 200%;
+        background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+        animation: shimmer 3s infinite;
+    }
+
+    @keyframes shimmer {
+        0% { transform: translateX(-100%) rotate(45deg); }
+        100% { transform: translateX(100%) rotate(45deg); }
     }
 
     .main-header h1 {
         color: white;
-        font-size: 2.5rem;
-        font-weight: 700;
+        font-size: 3.5rem;
+        font-weight: 800;
         margin: 0;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
     }
 
     .main-header p {
-        color: rgba(255,255,255,0.9);
-        font-size: 1.1rem;
+        color: rgba(255,255,255,0.95);
+        font-size: 1.3rem;
+        margin-top: 0.8rem;
+        font-weight: 300;
+    }
+
+    .stat-card {
+        background: linear-gradient(145deg, rgba(30, 30, 46, 0.9), rgba(37, 37, 53, 0.9));
+        border-radius: 20px;
+        padding: 1.5rem;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.1);
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.3);
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .stat-label {
+        color: rgba(255,255,255,0.7);
+        font-size: 0.9rem;
         margin-top: 0.5rem;
     }
 
-    /* Upload zone */
-    .upload-zone {
-        background: linear-gradient(145deg, #1e1e2e, #2a2a3e);
-        border: 2px dashed #667eea;
-        border-radius: 20px;
-        padding: 3rem;
-        text-align: center;
-        transition: all 0.3s ease;
-        margin: 1rem 0;
-    }
-
-    .upload-zone:hover {
-        border-color: #764ba2;
-        box-shadow: 0 0 30px rgba(102, 126, 234, 0.2);
-    }
-
-    /* Result card */
     .result-card {
-        background: linear-gradient(145deg, #1e1e2e, #252535);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin: 0.8rem 0;
+        background: linear-gradient(145deg, rgba(30, 30, 46, 0.95), rgba(37, 37, 53, 0.95));
+        border-radius: 20px;
+        padding: 1.8rem;
+        margin: 1rem 0;
         border: 1px solid rgba(255,255,255,0.1);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        backdrop-filter: blur(10px);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        animation: slideIn 0.5s ease-out;
+    }
+
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-30px); }
+        to { opacity: 1; transform: translateX(0); }
     }
 
     .result-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 0 25px 50px rgba(0,0,0,0.4);
     }
 
     .result-card.top-1 {
-        border-left: 4px solid #00d4aa;
-        background: linear-gradient(145deg, #1a2e2a, #252535);
+        border-left: 5px solid #00d4aa;
+        background: linear-gradient(145deg, rgba(0, 50, 40, 0.3), rgba(37, 37, 53, 0.95));
+        animation: slideIn 0.5s ease-out, pulseGreen 2s infinite;
     }
 
-    .result-card.top-2 {
-        border-left: 4px solid #667eea;
+    @keyframes pulseGreen {
+        0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 170, 0.2); }
+        50% { box-shadow: 0 0 40px rgba(0, 212, 170, 0.4); }
     }
 
-    .result-card.top-3 {
-        border-left: 4px solid #764ba2;
-    }
+    .result-card.top-2 { border-left: 5px solid #667eea; animation: slideIn 0.6s ease-out; }
+    .result-card.top-3 { border-left: 5px solid #764ba2; animation: slideIn 0.7s ease-out; }
 
-    /* Progress bar */
     .progress-container {
         background: rgba(255,255,255,0.1);
-        border-radius: 10px;
-        height: 12px;
+        border-radius: 15px;
+        height: 14px;
         overflow: hidden;
-        margin-top: 0.5rem;
+        margin-top: 0.8rem;
     }
 
     .progress-bar {
         height: 100%;
-        border-radius: 10px;
-        transition: width 0.8s ease;
+        border-radius: 15px;
+        animation: progressFill 1s ease-out;
+        position: relative;
+        overflow: hidden;
     }
 
-    .progress-bar.top-1 {
-        background: linear-gradient(90deg, #00d4aa, #00f5c4);
+    @keyframes progressFill { from { width: 0; } }
+
+    .progress-bar::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        animation: progressShine 2s infinite;
     }
 
-    .progress-bar.top-2 {
-        background: linear-gradient(90deg, #667eea, #7c8ff8);
+    @keyframes progressShine {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
     }
 
-    .progress-bar.top-3 {
-        background: linear-gradient(90deg, #764ba2, #9b6dcc);
-    }
+    .progress-bar.top-1 { background: linear-gradient(90deg, #00d4aa, #00f5c4, #00d4aa); background-size: 200% 100%; }
+    .progress-bar.top-2 { background: linear-gradient(90deg, #667eea, #7c8ff8, #667eea); background-size: 200% 100%; }
+    .progress-bar.top-3 { background: linear-gradient(90deg, #764ba2, #9b6dcc, #764ba2); background-size: 200% 100%; }
 
-    /* Class name and percentage */
-    .class-name {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #ffffff;
-        margin: 0;
-    }
+    .class-name { font-size: 1.4rem; font-weight: 600; color: #ffffff; margin: 0; }
+    .percentage { font-size: 2rem; font-weight: 800; float: right; }
+    .percentage.top-1 { color: #00d4aa; text-shadow: 0 0 20px rgba(0, 212, 170, 0.5); }
+    .percentage.top-2 { color: #667eea; }
+    .percentage.top-3 { color: #764ba2; }
+    .shoe-emoji { font-size: 1.8rem; margin-right: 0.8rem; }
 
-    .percentage {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #00d4aa;
-        float: right;
-    }
-
-    /* Emoji icons */
-    .shoe-emoji {
-        font-size: 1.5rem;
-        margin-right: 0.5rem;
-    }
-
-    /* Image container */
-    .image-container {
-        background: linear-gradient(145deg, #1e1e2e, #252535);
-        border-radius: 20px;
+    .history-item {
+        background: linear-gradient(145deg, rgba(30, 30, 46, 0.9), rgba(37, 37, 53, 0.9));
+        border-radius: 16px;
         padding: 1rem;
+        margin: 0.5rem 0;
         border: 1px solid rgba(255,255,255,0.1);
-        margin: 1rem 0;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
     }
 
-    /* Button styling */
+    .history-item:hover {
+        transform: scale(1.05);
+        border-color: rgba(102, 126, 234, 0.5);
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+    }
+
+    .history-item img { width: 100px; height: 100px; border-radius: 12px; object-fit: cover; margin-bottom: 0.5rem; }
+    .history-label { font-size: 1rem; font-weight: 600; color: #ffffff; }
+    .history-confidence { font-size: 0.9rem; color: #00d4aa; font-weight: 600; }
+    .history-time { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+
+    .modal-container { text-align: center; padding: 1rem; }
+    .modal-image {
+        width: 100%;
+        max-width: 400px;
+        border-radius: 20px;
+        margin: 0 auto 1.5rem auto;
+        display: block;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        border: 3px solid rgba(255,255,255,0.1);
+    }
+    .modal-label { font-size: 2.5rem; font-weight: 700; color: #ffffff; margin: 1rem 0; }
+    .modal-confidence { font-size: 1.5rem; color: #00d4aa; font-weight: 600; margin-bottom: 0.5rem; }
+    .modal-date { font-size: 1.1rem; color: rgba(255,255,255,0.6); margin-bottom: 1rem; }
+
     .stButton > button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border: none;
         padding: 0.8rem 2rem;
-        font-size: 1.1rem;
+        font-size: 1rem;
         font-weight: 600;
-        border-radius: 12px;
-        cursor: pointer;
+        border-radius: 15px;
         transition: all 0.3s ease;
         width: 100%;
     }
 
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
     }
 
-    /* Footer */
-    .footer {
-        text-align: center;
-        padding: 2rem;
-        color: rgba(255,255,255,0.5);
-        font-size: 0.9rem;
+    .divider {
+        height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.5), rgba(118, 75, 162, 0.5), transparent);
+        margin: 2.5rem 0;
     }
 
-    /* Hide Streamlit branding */
+    .footer { text-align: center; padding: 2rem; color: rgba(255,255,255,0.4); font-size: 0.9rem; }
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* Divider */
-    .divider {
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-        margin: 2rem 0;
-    }
-
-    /* History section */
-    .history-title {
-        color: #ffffff;
-        font-size: 1.3rem;
-        font-weight: 600;
-        margin-bottom: 1rem;
-    }
-
-    .history-item {
-        background: linear-gradient(145deg, #1e1e2e, #252535);
-        border-radius: 12px;
-        padding: 0.8rem;
-        margin: 0.5rem 0;
-        border: 1px solid rgba(255,255,255,0.1);
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .history-item img {
-        width: 60px;
-        height: 60px;
-        border-radius: 8px;
-        object-fit: cover;
-    }
-
-    .history-info {
-        flex: 1;
-    }
-
-    .history-label {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #ffffff;
-    }
-
-    .history-confidence {
-        font-size: 0.85rem;
-        color: #00d4aa;
-    }
-
-    .history-time {
-        font-size: 0.75rem;
-        color: rgba(255,255,255,0.5);
-    }
-
-    /* Modal popup */
-    .modal-image {
-        width: 100%;
-        max-width: 300px;
-        border-radius: 16px;
-        margin: 0 auto;
-        display: block;
-    }
-
-    .modal-info {
-        text-align: center;
-        padding: 1rem;
-    }
-
-    .modal-label {
-        font-size: 1.8rem;
+    .success-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #00d4aa, #00f5c4);
+        color: #000;
+        padding: 0.5rem 1.5rem;
+        border-radius: 50px;
         font-weight: 700;
-        color: #ffffff;
-        margin: 1rem 0 0.5rem 0;
+        animation: bounce 0.5s ease;
+        margin-top: 1rem;
     }
 
-    .modal-confidence {
-        font-size: 1.2rem;
-        color: #00d4aa;
-        margin-bottom: 0.5rem;
-    }
-
-    .modal-date {
-        font-size: 1rem;
-        color: rgba(255,255,255,0.6);
+    @keyframes bounce {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -333,244 +330,159 @@ st.markdown("""
 # ============================================================
 IMG_SIZE = (224, 224)
 CLASS_NAMES = ['Ballet Flat', 'Boat', 'Brogue', 'Clog', 'Sneaker']
+CLASS_EMOJIS = {'Ballet Flat': '🩰', 'Boat': '⛵', 'Brogue': '👞', 'Clog': '🥿', 'Sneaker': '👟'}
 
 # ============================================================
 # POPUP POUR L'HISTORIQUE
 # ============================================================
-@st.dialog("Détails de la prédiction")
+@st.dialog("Details de la prediction", width="large")
 def show_history_detail(item):
-    """Affiche les détails d'une prédiction dans un popup"""
     st.markdown(f"""
-    <div class="modal-info">
+    <div class="modal-container">
         <img src="data:image/png;base64,{item['image_base64']}" class="modal-image"/>
         <p class="modal-label">{item['emoji']} {item['label']}</p>
         <p class="modal-confidence">Confiance : {item['confidence']*100:.1f}%</p>
-        <p class="modal-date">Envoyé le {item.get('date', 'N/A')} à {item.get('time', 'N/A')}</p>
+        <p class="modal-date">Envoye le {item.get('date', 'N/A')} a {item.get('time', 'N/A')}</p>
     </div>
     """, unsafe_allow_html=True)
-
-    if st.button("Fermer", use_container_width=True):
-        st.rerun()
-CLASS_EMOJIS = {
-    'Ballet Flat': '🩰',
-    'Boat': '⛵',
-    'Brogue': '👞',
-    'Clog': '🥿',
-    'Sneaker': '👟'
-}
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("Fermer", use_container_width=True):
+            st.rerun()
 
 # ============================================================
-# CHARGEMENT DU MODÈLE (avec cache)
+# CHARGEMENT DU MODELE
 # ============================================================
 @st.cache_resource
 def load_model():
-    """Charge le modèle MobileNetV2 pré-entraîné (télécharge si nécessaire)"""
     model_path = download_model()
-    model = tf.keras.models.load_model(model_path)
-    return model
+    return tf.keras.models.load_model(model_path)
 
 # ============================================================
-# FONCTION DE PRÉDICTION
+# FONCTION DE PREDICTION
 # ============================================================
 def predict_image(model, image):
-    """
-    Prédit la classe d'une image de chaussure.
-    Retourne les top 3 prédictions avec leurs probabilités.
-    """
-    # Prétraitement de l'image
     img = image.resize(IMG_SIZE)
     img_array = np.array(img)
-
-    # Conversion en RGB si nécessaire
-    if len(img_array.shape) == 2:  # Grayscale
+    if len(img_array.shape) == 2:
         img_array = np.stack([img_array] * 3, axis=-1)
-    elif img_array.shape[-1] == 4:  # RGBA
+    elif img_array.shape[-1] == 4:
         img_array = img_array[:, :, :3]
-
-    # Normalisation et ajout de la dimension batch
     img_array = np.expand_dims(img_array, axis=0)
-
-    # Prédiction
     predictions = model.predict(img_array, verbose=0)
-
-    # Top 3 prédictions
     top3_indices = np.argsort(predictions[0])[-3:][::-1]
-
-    results = []
-    for idx in top3_indices:
-        results.append({
-            'class': CLASS_NAMES[idx],
-            'emoji': CLASS_EMOJIS[CLASS_NAMES[idx]],
-            'probability': float(predictions[0][idx])
-        })
-
-    return results
+    return [{'class': CLASS_NAMES[idx], 'emoji': CLASS_EMOJIS[CLASS_NAMES[idx]], 'probability': float(predictions[0][idx])} for idx in top3_indices]
 
 # ============================================================
-# INTERFACE UTILISATEUR
+# SIDEBAR - STATISTIQUES
 # ============================================================
+with st.sidebar:
+    st.markdown("## 📊 Statistiques")
+    if 'history' not in st.session_state:
+        st.session_state.history = load_history()
+    total = len(st.session_state.history)
+    class_counts = {}
+    total_conf = 0
+    for item in st.session_state.history:
+        class_counts[item.get('label', '')] = class_counts.get(item.get('label', ''), 0) + 1
+        total_conf += item.get('confidence', 0)
+    avg_conf = (total_conf / total * 100) if total > 0 else 0
 
-# Header
-st.markdown("""
-<div class="main-header">
-    <h1>👟 Shoe Classifier</h1>
-    <p>Classification intelligente de chaussures avec Deep Learning</p>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown(f'<div class="stat-card"><div class="stat-number">{total}</div><div class="stat-label">Predictions</div></div>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(f'<div class="stat-card"><div class="stat-number">{avg_conf:.1f}%</div><div class="stat-label">Confiance moy.</div></div>', unsafe_allow_html=True)
 
-# Chargement du modèle
+    if class_counts:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("### 📈 Par categorie")
+        for cls, count in sorted(class_counts.items(), key=lambda x: x[1], reverse=True):
+            st.markdown(f"{CLASS_EMOJIS.get(cls, '👟')} **{cls}**: {count}")
+
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    st.markdown("### ℹ️ A propos")
+    st.markdown("**Modele**: MobileNetV2\n**Precision**: ~77%")
+
+# ============================================================
+# INTERFACE PRINCIPALE
+# ============================================================
+st.markdown('<div class="main-header"><h1>👟 Shoe Classifier AI</h1><p>Classification intelligente avec Deep Learning</p></div>', unsafe_allow_html=True)
+
 try:
     model = load_model()
     model_loaded = True
 except Exception as e:
-    st.error(f"Erreur lors du chargement du modèle: {e}")
+    st.error(f"Erreur: {e}")
     model_loaded = False
 
 if model_loaded:
-    # Charger l'historique persistant
-    if 'history' not in st.session_state:
-        st.session_state.history = load_history()
-
-    # Zone d'upload
     st.markdown("### 📤 Uploadez une image")
-    uploaded_file = st.file_uploader(
-        "Glissez-déposez une image ou cliquez pour sélectionner",
-        type=['png', 'jpg', 'jpeg', 'webp'],
-        label_visibility="collapsed"
-    )
+    uploaded_file = st.file_uploader("", type=['png', 'jpg', 'jpeg', 'webp'], label_visibility="collapsed")
 
-    if uploaded_file is not None:
-        # Afficher l'image
+    if uploaded_file:
         image = Image.open(uploaded_file)
-
-        col1, col2 = st.columns([1, 1])
+        col1, col2 = st.columns([1, 1], gap="large")
 
         with col1:
-            st.markdown("#### 🖼️ Image uploadée")
+            st.markdown("#### 🖼️ Image")
             st.image(image, use_container_width=True)
 
         with col2:
-            st.markdown("#### 🎯 Résultats")
-
-            # Prédiction
-            with st.spinner("Analyse en cours..."):
+            st.markdown("#### 🎯 Resultats")
+            with st.spinner("🔍 Analyse..."):
                 results = predict_image(model, image)
 
-            # Sauvegarder dans l'historique (éviter les doublons)
+            if results[0]['probability'] > 0.85:
+                st.balloons()
+                st.markdown('<div class="success-badge">🎉 Haute confiance!</div>', unsafe_allow_html=True)
+
             file_id = uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name
             if not any(h.get('file_id') == file_id for h in st.session_state.history):
-                # Convertir l'image en base64 pour la stocker
                 img_thumb = image.copy()
-                img_thumb.thumbnail((100, 100))
+                img_thumb.thumbnail((200, 200))
                 buffered = io.BytesIO()
                 img_thumb.save(buffered, format="PNG")
-                img_base64 = base64.b64encode(buffered.getvalue()).decode()
-
                 now = datetime.now()
                 st.session_state.history.insert(0, {
                     'file_id': file_id,
-                    'image_base64': img_base64,
+                    'image_base64': base64.b64encode(buffered.getvalue()).decode(),
                     'label': results[0]['class'],
                     'emoji': results[0]['emoji'],
                     'confidence': results[0]['probability'],
                     'time': now.strftime("%H:%M:%S"),
-                    'date': now.strftime("%d/%m"),
-                    'timestamp': now.isoformat()  # Pour l'expiration
+                    'date': now.strftime("%d/%m/%Y"),
+                    'timestamp': now.isoformat()
                 })
-                # Garder seulement les 10 dernières
                 st.session_state.history = st.session_state.history[:10]
-                # Sauvegarder dans le fichier
                 save_history(st.session_state.history)
 
-            # Affichage des résultats
-            for i, result in enumerate(results):
-                rank = i + 1
-                prob_percent = result['probability'] * 100
-
-                # Couleur selon le rang
-                if rank == 1:
-                    color_class = "top-1"
-                    prob_color = "#00d4aa"
-                elif rank == 2:
-                    color_class = "top-2"
-                    prob_color = "#667eea"
-                else:
-                    color_class = "top-3"
-                    prob_color = "#764ba2"
-
-                st.markdown(f"""
-                <div class="result-card {color_class}">
-                    <span class="percentage" style="color: {prob_color}">{prob_percent:.1f}%</span>
-                    <p class="class-name">
-                        <span class="shoe-emoji">{result['emoji']}</span>
-                        {result['class']}
-                    </p>
-                    <div class="progress-container">
-                        <div class="progress-bar {color_class}" style="width: {prob_percent}%"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-        # Informations supplémentaires
-        with st.expander("ℹ️ À propos de la prédiction"):
-            st.write(f"""
-            - **Modèle utilisé** : MobileNetV2 (fine-tuned)
-            - **Classes disponibles** : {', '.join(CLASS_NAMES)}
-            - **Confiance maximale** : {results[0]['probability']*100:.2f}%
-            """)
+            for i, r in enumerate(results):
+                c = ["top-1", "top-2", "top-3"][i]
+                st.markdown(f'''<div class="result-card {c}">
+                    <span class="percentage {c}">{r["probability"]*100:.1f}%</span>
+                    <p class="class-name"><span class="shoe-emoji">{r["emoji"]}</span>{r["class"]}</p>
+                    <div class="progress-container"><div class="progress-bar {c}" style="width:{r["probability"]*100}%"></div></div>
+                </div>''', unsafe_allow_html=True)
 
     else:
-        # Message d'attente
-        st.markdown("""
-        <div style="text-align: center; padding: 3rem; color: rgba(255,255,255,0.6);">
-            <p style="font-size: 3rem; margin-bottom: 1rem;">👆</p>
-            <p>Uploadez une image de chaussure pour commencer l'analyse</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div style="text-align:center;padding:4rem;color:rgba(255,255,255,0.6);"><p style="font-size:5rem;">👟</p><p style="font-size:1.3rem;">Glissez une image pour commencer</p></div>', unsafe_allow_html=True)
 
-    # ============================================================
-    # HISTORIQUE DES PRÉDICTIONS
-    # ============================================================
     if st.session_state.history:
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-        st.markdown("### 📜 Historique des prédictions")
-
-        # Bouton pour effacer l'historique
-        col_clear, col_spacer = st.columns([1, 3])
-        with col_clear:
-            if st.button("🗑️ Effacer l'historique"):
+        st.markdown("### 📜 Historique")
+        c1, c2 = st.columns([1, 4])
+        with c1:
+            if st.button("🗑️ Effacer"):
                 st.session_state.history = []
-                save_history([])  # Vider le fichier aussi
+                save_history([])
                 st.rerun()
+        with c2:
+            st.caption(f"💾 {len(st.session_state.history)} predictions (expire 72h)")
 
-        # Afficher l'historique en grille
-        cols = st.columns(5)
+        cols = st.columns(5, gap="medium")
         for idx, item in enumerate(st.session_state.history):
             with cols[idx % 5]:
-                date_str = item.get('date', '')
-                time_str = item.get('time', '')
-
-                # Carte cliquable
-                st.markdown(f"""
-                <div class="history-item" style="flex-direction: column; text-align: center; cursor: pointer;">
-                    <img src="data:image/png;base64,{item['image_base64']}" style="width: 80px; height: 80px;"/>
-                    <div class="history-info">
-                        <div class="history-label">{item['emoji']} {item['label']}</div>
-                        <div class="history-confidence">{item['confidence']*100:.1f}%</div>
-                        <div class="history-time">{date_str} {time_str}</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Bouton pour ouvrir le popup
-                if st.button("👁️ Voir", key=f"view_{idx}", use_container_width=True):
+                st.markdown(f'<div class="history-item"><img src="data:image/png;base64,{item["image_base64"]}"/><div class="history-label">{item["emoji"]} {item["label"]}</div><div class="history-confidence">{item["confidence"]*100:.1f}%</div><div class="history-time">{item.get("date","")} {item.get("time","")}</div></div>', unsafe_allow_html=True)
+                if st.button("👁️", key=f"v_{idx}", use_container_width=True):
                     show_history_detail(item)
 
-# Footer
-st.markdown("""
-<div class="footer">
-    <p>Modèle MobileNetV2 entraîné sur le dataset Shoes Classification</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="footer"><p>Powered by TensorFlow & Streamlit</p></div>', unsafe_allow_html=True)
