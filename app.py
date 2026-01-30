@@ -268,7 +268,6 @@ st.markdown("""
     .modal-container { text-align: center; padding: 1rem; }
     .modal-image {
         width: 100%;
-        max-width: 400px;
         border-radius: 20px;
         margin: 0 auto 1.5rem auto;
         display: block;
@@ -322,6 +321,65 @@ st.markdown("""
         0%, 100% { transform: scale(1); }
         50% { transform: scale(1.1); }
     }
+
+    .not-shoe-card {
+        background: linear-gradient(145deg, rgba(255, 82, 82, 0.15), rgba(37, 37, 53, 0.95));
+        border-radius: 20px;
+        padding: 2.5rem;
+        margin: 1.5rem 0;
+        border: 2px solid rgba(255, 82, 82, 0.5);
+        text-align: center;
+        animation: shakeAndFade 0.6s ease-out;
+    }
+
+    @keyframes shakeAndFade {
+        0% { opacity: 0; transform: translateX(-10px); }
+        20% { transform: translateX(10px); }
+        40% { transform: translateX(-10px); }
+        60% { transform: translateX(10px); }
+        80% { transform: translateX(-5px); }
+        100% { opacity: 1; transform: translateX(0); }
+    }
+
+    .not-shoe-card:hover {
+        box-shadow: 0 0 30px rgba(255, 82, 82, 0.3);
+    }
+
+    .not-shoe-emoji {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        animation: wobble 2s infinite;
+    }
+
+    @keyframes wobble {
+        0%, 100% { transform: rotate(0deg); }
+        25% { transform: rotate(-10deg); }
+        75% { transform: rotate(10deg); }
+    }
+
+    .not-shoe-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #ff5252;
+        margin: 0.5rem 0;
+        text-shadow: 0 0 20px rgba(255, 82, 82, 0.3);
+    }
+
+    .not-shoe-subtitle {
+        font-size: 1.1rem;
+        color: rgba(255, 255, 255, 0.7);
+        margin: 0.5rem 0;
+    }
+
+    .detected-class {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.5rem 1.2rem;
+        border-radius: 50px;
+        color: #ffd54f;
+        font-weight: 600;
+        margin-top: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -331,6 +389,33 @@ st.markdown("""
 IMG_SIZE = (224, 224)
 CLASS_NAMES = ['Ballet Flat', 'Boat', 'Brogue', 'Clog', 'Sneaker']
 CLASS_EMOJIS = {'Ballet Flat': '🩰', 'Boat': '⛵', 'Brogue': '👞', 'Clog': '🥿', 'Sneaker': '👟'}
+CLASS_FR = {
+    'Ballet Flat': 'Ballerine',
+    'Boat': 'Chaussure Bateau',
+    'Brogue': 'Richelieu',
+    'Clog': 'Sabot',
+    'Sneaker': 'Basket'
+}
+
+# Classes ImageNet liées aux chaussures (indices dans ImageNet)
+IMAGENET_SHOE_CLASSES = {
+    502: 'clog',
+    518: 'cowboy_boot',
+    519: 'cowboy_hat',  # exclure
+    539: 'dutch_oven',  # exclure
+    542: 'Running_shoe',
+    543: 'shoe_shop',
+    614: 'loafer',
+    630: 'Loafer',
+    770: 'running_shoe',
+    774: 'sandal',
+    787: 'slipper',
+    788: 'sneaker',
+    795: 'boot',
+}
+# Indices réels des chaussures dans ImageNet
+SHOE_INDICES = [502, 518, 542, 614, 770, 774, 787, 788, 795]
+CONFIDENCE_THRESHOLD = 0.15  # Seuil minimum pour considérer que c'est une chaussure
 
 # ============================================================
 # POPUP POUR L'HISTORIQUE
@@ -358,6 +443,49 @@ def load_model():
     model_path = download_model()
     return tf.keras.models.load_model(model_path)
 
+@st.cache_resource
+def load_imagenet_model():
+    """Charge MobileNetV2 pré-entraîné sur ImageNet pour la détection"""
+    return tf.keras.applications.MobileNetV2(weights='imagenet', include_top=True)
+
+# ============================================================
+# VERIFICATION SI L'IMAGE EST UNE CHAUSSURE
+# ============================================================
+def is_shoe_image(imagenet_model, image):
+    """
+    Vérifie si l'image contient une chaussure en utilisant ImageNet.
+    Retourne (is_shoe: bool, detected_class: str, confidence: float)
+    """
+    img = image.resize(IMG_SIZE)
+    img_array = np.array(img)
+
+    # Gérer les images en niveaux de gris ou avec canal alpha
+    if len(img_array.shape) == 2:
+        img_array = np.stack([img_array] * 3, axis=-1)
+    elif img_array.shape[-1] == 4:
+        img_array = img_array[:, :, :3]
+
+    # Prétraitement pour MobileNetV2
+    img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
+    img_array = np.expand_dims(img_array, axis=0)
+
+    # Prédiction ImageNet
+    predictions = imagenet_model.predict(img_array, verbose=0)
+    decoded = tf.keras.applications.mobilenet_v2.decode_predictions(predictions, top=10)[0]
+
+    # Vérifier si une des top prédictions est une chaussure
+    shoe_keywords = ['shoe', 'boot', 'sandal', 'loafer', 'clog', 'sneaker', 'slipper', 'footwear']
+
+    for _, pred_name, pred_conf in decoded:
+        pred_name_lower = pred_name.lower().replace('_', ' ')
+        for keyword in shoe_keywords:
+            if keyword in pred_name_lower:
+                return True, pred_name.replace('_', ' '), float(pred_conf)
+
+    # Retourner la classe la plus probable si ce n'est pas une chaussure
+    top_pred = decoded[0]
+    return False, top_pred[1].replace('_', ' '), float(top_pred[2])
+
 # ============================================================
 # FONCTION DE PREDICTION
 # ============================================================
@@ -371,7 +499,7 @@ def predict_image(model, image):
     img_array = np.expand_dims(img_array, axis=0)
     predictions = model.predict(img_array, verbose=0)
     top3_indices = np.argsort(predictions[0])[-3:][::-1]
-    return [{'class': CLASS_NAMES[idx], 'emoji': CLASS_EMOJIS[CLASS_NAMES[idx]], 'probability': float(predictions[0][idx])} for idx in top3_indices]
+    return [{'class': CLASS_NAMES[idx], 'class_fr': CLASS_FR[CLASS_NAMES[idx]], 'emoji': CLASS_EMOJIS[CLASS_NAMES[idx]], 'probability': float(predictions[0][idx])} for idx in top3_indices]
 
 # ============================================================
 # SIDEBAR - STATISTIQUES
@@ -409,6 +537,7 @@ st.markdown('<div class="main-header"><h1>👟 Shoe Classifier AI</h1><p>Classif
 
 try:
     model = load_model()
+    imagenet_model = load_imagenet_model()
     model_loaded = True
 except Exception as e:
     st.error(f"Erreur: {e}")
@@ -428,40 +557,56 @@ if model_loaded:
 
         with col2:
             st.markdown("#### 🎯 Resultats")
-            with st.spinner("🔍 Analyse..."):
+            with st.spinner("🔍 Analyse en cours..."):
+                # Vérifier d'abord si c'est une chaussure
+                is_shoe, detected_class, detected_conf = is_shoe_image(imagenet_model, image)
+
+            if not is_shoe:
+                # Ce n'est pas une chaussure !
+                st.markdown(f'''
+                <div class="not-shoe-card">
+                    <div class="not-shoe-emoji">🤔</div>
+                    <p class="not-shoe-title">Oups ! Ce n'est pas une chaussure</p>
+                    <p class="not-shoe-subtitle">L'image ne semble pas contenir de chaussure.</p>
+                    <div class="detected-class">Detecte : {detected_class} ({detected_conf*100:.1f}%)</div>
+                </div>
+                ''', unsafe_allow_html=True)
+                st.info("💡 Essayez avec une photo de chaussure : sneaker, ballerine, mocassin, sabot...")
+            else:
+                # C'est une chaussure, on classifie
                 results = predict_image(model, image)
 
-            if results[0]['probability'] > 0.85:
-                st.balloons()
-                st.markdown('<div class="success-badge">🎉 Haute confiance!</div>', unsafe_allow_html=True)
+                if results[0]['probability'] > 0.85:
+                    st.balloons()
+                    st.markdown('<div class="success-badge">🎉 Haute confiance!</div>', unsafe_allow_html=True)
 
-            file_id = uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name
-            if not any(h.get('file_id') == file_id for h in st.session_state.history):
-                img_thumb = image.copy()
-                img_thumb.thumbnail((200, 200))
-                buffered = io.BytesIO()
-                img_thumb.save(buffered, format="PNG")
-                now = datetime.now()
-                st.session_state.history.insert(0, {
-                    'file_id': file_id,
-                    'image_base64': base64.b64encode(buffered.getvalue()).decode(),
-                    'label': results[0]['class'],
-                    'emoji': results[0]['emoji'],
-                    'confidence': results[0]['probability'],
-                    'time': now.strftime("%H:%M:%S"),
-                    'date': now.strftime("%d/%m/%Y"),
-                    'timestamp': now.isoformat()
-                })
-                st.session_state.history = st.session_state.history[:10]
-                save_history(st.session_state.history)
+                file_id = uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name
+                if not any(h.get('file_id') == file_id for h in st.session_state.history):
+                    img_thumb = image.copy()
+                    img_thumb.thumbnail((200, 200))
+                    buffered = io.BytesIO()
+                    img_thumb.save(buffered, format="PNG")
+                    now = datetime.now()
+                    st.session_state.history.insert(0, {
+                        'file_id': file_id,
+                        'image_base64': base64.b64encode(buffered.getvalue()).decode(),
+                        'label': results[0]['class'],
+                        'emoji': results[0]['emoji'],
+                        'confidence': results[0]['probability'],
+                        'time': now.strftime("%H:%M:%S"),
+                        'date': now.strftime("%d/%m/%Y"),
+                        'timestamp': now.isoformat()
+                    })
+                    st.session_state.history = st.session_state.history[:10]
+                    save_history(st.session_state.history)
 
-            for i, r in enumerate(results):
-                c = ["top-1", "top-2", "top-3"][i]
-                st.markdown(f'''<div class="result-card {c}">
-                    <span class="percentage {c}">{r["probability"]*100:.1f}%</span>
-                    <p class="class-name"><span class="shoe-emoji">{r["emoji"]}</span>{r["class"]}</p>
-                    <div class="progress-container"><div class="progress-bar {c}" style="width:{r["probability"]*100}%"></div></div>
-                </div>''', unsafe_allow_html=True)
+                for i, r in enumerate(results):
+                    c = ["top-1", "top-2", "top-3"][i]
+                    st.markdown(f'''<div class="result-card {c}">
+                        <span class="percentage {c}">{r["probability"]*100:.1f}%</span>
+                        <p class="class-name"><span class="shoe-emoji">{r["emoji"]}</span>{r["class"]}</p>
+                        <div class="progress-container"><div class="progress-bar {c}" style="width:{r["probability"]*100}%"></div></div>
+                    </div>''', unsafe_allow_html=True)
 
     else:
         st.markdown('<div style="text-align:center;padding:4rem;color:rgba(255,255,255,0.6);"><p style="font-size:5rem;">👟</p><p style="font-size:1.3rem;">Glissez une image pour commencer</p></div>', unsafe_allow_html=True)
